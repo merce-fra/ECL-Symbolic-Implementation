@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+Cython = "*"
+cython-compiler = "*"
+numpy = "*"
+networkx = "*"
+matplotlib = "*"
+pandas = "*"
+pyqt5 = "*"
+cysignals = "*"
+gmpy2 = "==2.1.0a1"
+cython = "*"
+pyny3d = "*"
+
+[dev-packages]
+pytest = "*"
+pytest-cov = "*"
+mutmut = "*"
+pytest-xdist = "*"
+
+[requires]
+python_version = "3.8"
