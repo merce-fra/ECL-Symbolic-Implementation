@@ -264,7 +264,11 @@ class Explorer(object):
 
         for current_node in sorted_nodes:
             if current_node != self.ta.goal_location:
+                import time
+                t0 = time.time()
                 Perm = self.compute_permissiveness(current_node)
+                t1 = time.time()
+                print(f"{current_node} : {t1 - t0:<10.6f} | {len(Perm.functions)}")
                 self.ta.nodes[current_node][PERMISSIVENESS_FUNCTION] = Perm
 
         self.executed = True

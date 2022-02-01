@@ -1,39 +1,27 @@
 # coding=utf-8
 # import math
 import dataclasses
-import math
-import pprint
+import random
 import time
-import timeit
 from fractions import Fraction
-from functools import reduce
-from math import inf
 from pathlib import Path
 from typing import List
 
-import numpy as np
 import pysymbrobustness.ppl_extension.rational_linear_algebra as rla
 import pysymbrobustness.ppl_extension.linear_algebra as lin_alg
-import tests.test_rational_linear_algebra_ex as tests_rla
 import pysymbrobustness.ppl_extension.piecewise_linear_function as plf
-import pysymbrobustness.ppl_extension.technical_lemma as tech
 import pysymbrobustness.ppl_extension.polyhedra as polyhedra
-import pysymbrobustness.ppl_extension.variable_elimination as var_elim
-from gmpy2 import mpz, mpq
-from numpy import polynomial
-import gmpy2 as gmp
 import ppl as ppl
 import pysymbrobustness.ta.timedauto as timedauto
 import pysymbrobustness.ta.guards as guards
 import pysymbrobustness.ta.creators as creators
 import pysymbrobustness.permissiveness_computation.explorer as explorer
-from pysymbrobustness.ta.misc_debug import latex_output
+from pysymbrobustness.ta.misc_debug import visual, latex_output
 
 Variable = ppl.Variable
 Constraint_System = ppl.Constraint_System
 C_Polyhedron = ppl.C_Polyhedron
 Constraint = ppl.Constraint
-import numpy as np
 
 x = ppl.Variable(0)
 y = ppl.Variable(1)
@@ -284,6 +272,26 @@ def formats_timed_automaton_4() -> timedauto.TimedAutomaton:
         guard_2=guard_2, reset_2=reset_2
     )
 
+def formats_timed_automaton_5() -> timedauto.TimedAutomaton:
+    guard_0 = ppl.C_Polyhedron(lin_alg.cs_from_list([
+        x >= 0, x <= 1,
+    ]))
+    reset_0 = []
+    guard_1 = ppl.C_Polyhedron(lin_alg.cs_from_list([
+        y >= 0, y <= 1
+    ]))
+    reset_1 = [1]
+    guard_2 = ppl.C_Polyhedron(lin_alg.cs_from_list([
+        x >= 1, x <= 2,
+        y >= 0, y <= 1,
+    ]))
+    reset_2 = []
+    return three_transitions_timed_auto(
+        guard_0=guard_0, reset_0=reset_0,
+        guard_1=guard_1, reset_1=reset_1,
+        guard_2=guard_2, reset_2=reset_2
+    )
+
 
 def formats_timed_automata_0_n_transitions(n: int) -> timedauto.TimedAutomaton:
     guard = ppl.C_Polyhedron(
@@ -311,11 +319,146 @@ def formats_timed_automata_0_n_transitions(n: int) -> timedauto.TimedAutomaton:
 
     )
 
-@dataclasses.dataclass
-class AssociationFunctionPolyhedra():
 
-    function : plf.LinearFunction
-    poly_list : List[ppl.C_Polyhedron]
+@dataclasses.dataclass
+class AssociationFunctionPolyhedra:
+    function: plf.LinearFunction
+    poly_list: List[ppl.C_Polyhedron]
+
+
+def timed_automata_n_transitions(nb_c: int, guards: List[ppl.C_Polyhedron],
+                                 resets: List[List[int]]) -> timedauto.TimedAutomaton:
+    n = len(guards)
+    t = [{
+        "start_location": i,
+        "end_location": i + 1,
+        "data": [
+            {
+                "action": "a_0",
+                "guard": guards[i],
+                "resets": resets[i]
+            }]
+    } for i in range(n)]
+    return creators.timed_automaton_creator(
+        {
+            "transitions": t,
+            "init_location": 0,
+            "goal_location": n,
+            "number_clocks": nb_c,
+
+        },
+
+    )
+
+
+def experiment_clocks(nb_transition: int, nb_clock: int):
+    variables = [Variable(i) for i in range(nb_clock)]
+
+    guard = polyhedra.c_polyhedron_constructor(
+        dimension=nb_clock,
+        cs_list=
+        [variables[i] >= 0 for i in range(nb_clock)]
+        + [variables[i] <= 1 for i in range(nb_clock)]
+
+    )
+
+    guards = [guard for i in range(nb_transition)]
+    resets = [[] for i in range(nb_transition)]
+    # resets = [[0], [], [1], []]
+    nb_reset = 0
+
+    while nb_reset <= nb_clock // 2:
+        t = random.randint(0, nb_transition - 1)
+        c = random.randint(0, nb_clock - 1)
+
+        if len(resets[t]) == 0:
+            resets[t].append(c)
+            nb_reset += 1
+
+    ta = timed_automata_n_transitions(nb_c=nb_clock,
+                                      guards=guards,
+                                      resets=resets)
+
+    print(f"Resets : {resets}")
+
+    ex = explorer.Explorer(ta=ta)
+
+    t0 = time.time()
+    ex.explorer()
+    t1 = time.time()
+
+    filepath = Path('./../../experiment_random_resets.txt')
+
+    with open(filepath, 'w') as file:
+        file.write(f"resets : {resets}\n"
+                   f"runtime : {t1 - t0}\n")
+
+        file.write("\n\n----- PERMISSIVENESS FUNCTIONS -----\n\n")
+        for node in ta.nodes:
+            spline = ta.nodes[node]['Permissiveness_function']
+            file.write(f"Node : {node}\n")
+            visual_spline = visual(spline)
+
+            file.write("[\n")
+            for sub_spline in visual_spline:
+                file.write(f"{sub_spline},\n")
+            file.write("]\n\n")
+
+    pass
+
+
+def experiment_tikz():
+    tas = [
+        # formats_timed_automaton_5(),
+        formats_timed_automaton_0(),
+        formats_timed_automaton_2(),
+        formats_timed_automaton_3()
+    ]
+
+    for i, ta in enumerate(tas):
+        print(i)
+        ex = explorer.Explorer(ta=ta)
+        perm = ex.all_nodes_permissiveness()[0]
+
+        for j, perm in ex.all_nodes_permissiveness().items():
+            if j != 2:
+                latex_output(perm, Path(f'./test_{i}_l{j}.tex').absolute())
+
+def experiment_long_computation():
+    guard = polyhedra.c_polyhedron_constructor(
+        dimension=3,
+        cs_list=
+        [ppl.Variable(i) >= 0 for i in range(3)]
+        + [ppl.Variable(i) <= 1 for i in range(3)]
+
+    )
+    guards = [guard for i in range(4)]
+
+    # resets_0 = [[], [1], [], [2]]
+    resets_1 = [[2], [1], [], []]
+    ta = timed_automata_n_transitions(nb_c=3,
+                                      guards=guards,
+                                      resets=resets_1)
+
+    print(f"Resets : {resets_1}")
+
+    ex = explorer.Explorer(ta=ta)
+
+    t0 = time.time()
+    ex.explorer()
+    t1 = time.time()
+    perm = ex.permissiveness()
+    filepath = Path('./../../experiment_random_resets.txt')
+
+    with open(filepath, 'w') as file:
+        file.write(f"resets : {resets_1}\n"
+                   f"runtime : {t1 - t0}\n")
+
+    return perm
+
+
+
+
 
 def main():
     x = Variable(0)
@@ -368,13 +511,14 @@ def main():
     # polyhedra.show(new_spline.sub_splines[0].polyhedron)
 
     # TEST OF THE EXPLORER
-    """
+
     ta = formats_timed_automata_0_n_transitions(2), \
          formats_timed_automaton_1(), \
          formats_timed_automaton_2(), \
          formats_timed_automaton_3(), \
          formats_timed_automaton_4()
-
+    # TIMING RUNTIME TEST
+    """
     timings = []
 
     for i in [1, 2, 3, 4]:
@@ -387,43 +531,42 @@ def main():
         timings.append(t1 - t0)
 
     pprint.pprint({i: t for i,t in enumerate(timings)})
-"""
+    """
+    # PRINT THE SPLINE ON TIKZ INTERFACE
+    ex = explorer.Explorer(ta=ta[3])
+    ex, perm = ex, ex.all_nodes_permissiveness()[1]
+
+    latex_output(perm, Path('./test.tex').absolute())
+    """
 
     # CONVEX HULL TEST
 
-    ta = formats_timed_automaton_3()
+    ta = formats_timed_automaton_4()
     ex = explorer.Explorer(ta=ta)
     ex, perm = ex, ex.all_nodes_permissiveness()[0]
 
+    # L: List[AssociationFunctionPolyhedra] = []
+    # for sub in perm.sub_splines:
+    #     P = sub.polyhedron
+    #     f = sub.function
+    #     found_assoc = False
+    #
+    #     for assoc in L:
+    #         if f.is_equal_to(assoc.function):
+    #             assoc.poly_list.append(P)
+    #             found_assoc = True
+    #             break
+    #
+    #     if not found_assoc:
+    #         assoc = AssociationFunctionPolyhedra(function=f, poly_list=[P])
+    #         L.append(assoc)
 
-    L: List[AssociationFunctionPolyhedra] = []
-    for sub in perm.sub_splines:
-        P = sub.polyhedron
-        f = sub.function
-        found_assoc = False
-
-        for assoc in L:
-            if f.is_equal_to(assoc.function):
-                assoc.poly_list.append(P)
-                found_assoc = True
-                break
-
-        if not found_assoc:
-            assoc = AssociationFunctionPolyhedra(function=f, poly_list=[P])
-            L.append(assoc)
-
-    first_assoc = L[3]
-    print(first_assoc.poly_list)
-    P_init = ppl.C_Polyhedron(2, 'empty')
-    for poly in first_assoc.poly_list:
-        P_init.poly_hull_assign(poly)
-    print(P_init.constraints())
-
-
-
-
-
-
+    # first_assoc = L[3]
+    # print(first_assoc.poly_list)
+    # P_init = ppl.C_Polyhedron(2, 'empty')
+    # for poly in first_assoc.poly_list:
+    #     P_init.poly_hull_assign(poly)
+    # print(P_init.constraints())
 
     # ex = explorer.Explorer(ta=ta[4])
     #
@@ -444,6 +587,7 @@ def main():
 
     # Time complexity evaluation
     """
+    """
     max_transition = 1_000_000
     step = 1_000
     timing_tab = {}
@@ -458,6 +602,7 @@ def main():
         # end of operation
 
     pprint.pprint( timing_tab )
+    """
     """
     # perm = explorer.Explorer(formats_timed_automata_0_n_transitions(7)).permissiveness()
     # for sub in perm.sub_splines:
@@ -503,8 +648,12 @@ def main():
     # print("Q non minimized constraints = "+str(Q.constraints()))
     # print("Q minimized constraints = "+str(Q.minimized_constraints()))
     # print("Q generators = "+str(Q.generators()))
-
+    """
 
 if __name__ == "__main__":
     # execute only if run as a script
-    main()
+    # main()
+    # experiment_tikz()
+    # TEST OF THREE CLOCKS TA (RUNTIME HIGH !!!) Random TA.
+    # experiment_clocks(4, 3)
+    perm = experiment_long_computation()

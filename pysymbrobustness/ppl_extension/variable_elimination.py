@@ -101,7 +101,7 @@ List[int], dim: int) -> ppl.C_Polyhedron:
     # Squeezing alpha
     list_p = []
     for i, j in product(negative_p, positive_p):
-        list_p.append(le_P[i]*sum_q[j] - le_Q[j]*sum_p[i] >= 0)
+        list_p.append(le_P[i]*sum_p[j] - le_P[j]*sum_p[i] >= 0)
 
     # Squeezing beta
     list_q = []
@@ -112,7 +112,7 @@ List[int], dim: int) -> ppl.C_Polyhedron:
     # the lower bound of alpha
 
     list_q_p = []
-    for i, j in product(negative_q, positive_p):
+    for i, j in product(negative_q, positive_q):
         list_q_p.append(le_Q[i] * sum_q[j] - le_Q[j] * sum_q[i] >= 0)
 
 
