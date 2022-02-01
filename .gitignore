@@ -15,3 +15,8 @@ docs
 *.rst
 *.lot
 *.lof
+*.synctex.gz
+*.log
+*.blg
+*.pdf
+*.tex
